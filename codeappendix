@@ -1,0 +1,344 @@
+---
+title: "ProtestProjWork"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+setwd('C:/Users/malik/Downloads')
+data <- read.csv('cleanprotestdata.csv')
+```
+```{r}
+head(data)
+summary(data)
+```
+```{r}
+summary(data$stateresponsedummy)
+```
+
+```{r}
+#load packages 
+library(dataQualityR)
+library(corrplot)
+library(ggplot2)
+library(ggpubr)
+library(scales)
+library(dplyr)
+library(tidyverse)
+library(MASS)
+```
+
+```{r}
+data <- subset(data,select = -c(data$protest))
+```
+
+```{r}
+#correlations btwn relevant numeric variables 
+
+cor.test(data$stateresponsedummy, data$length)
+cor.test(data$stateresponsedummy, data$protesterviolence)
+cor.test(data$length,data$protesterviolence)
+
+```
+
+```{r}
+#distributions:
+
+#state response dummy variable (target variable!)
+g1 <- ggplot(data,
+       aes(x = stateresponsedummy)) +
+  geom_bar() + scale_x_continuous(breaks=c(0,1))
+g1
+
+#protestor violence
+
+#length of protest
+g2 <- ggplot(data, aes(length))+ 
+  geom_histogram(color="darkblue", fill="lightblue") + 
+  labs(title = "Length Distribution") + 
+  theme(plot.title=element_text(hjust=0.5))  +
+  geom_vline(aes(xintercept=mean(length)), color="blue", linetype="dashed", size=1) + xlim(c(0,30)) + ylim(c(0,1000))
+g2 
+#year
+g3 <- ggplot(data,
+       aes(x = year)) +
+  geom_bar() + scale_x_continuous(breaks=c(0,1))
+g3
+```
+```{r}
+ga<- ggplot(data,
+  geom_bar() + scale_x_continuous(breaks=c(0,1))
+ga
+```
+
+```{r}
+#chi sq tests
+chisq.test(data$stateresponsedummy, data$length) #rej ; variables are not independent 
+chisq.test(data$stateresponsedummy, data$protesterviolence) #ftr ; variables are independent 
+chisq.test(data$length,data$protesterviolence) #rej ; variables are not independent 
+
+#The null hypothesis of the Chi-Square test is that no relationship exists on the categorical variables in the population; they are independent.
+#if we reject the null hypothesis that there is no relationship and p < 0.05 then the variables are dependent. if p > 0.05 then we ftr the null hypothesis and variables are independent. 
+#H0 : the variables are independent, there is no relationship between the two categorical variables. Knowing the value of one variable does not help to predict the value of the other variable
+
+```
+```{r}
+#interaction effects (based on corr matrix and chi sq test)
+inter1 <- lm(stateresponsedummy ~ protesterviolence * length, data = data)
+summary(inter1)
+
+#interaction plots
+library(ggplot2)
+library(interactions)
+library(jtools)
+inter1plot <- interact_plot(inter1, pred = stateresponsedummy, modx = length)
+
+
+#show plots
+#inter1plot
+
+```
+```{r}
+#create factors to use for models 
+
+data$participants_category <-factor(data$participants_category, levels=c("50-99","100-999", "1000-1999","2000-4999","5000-10000", ">10000", "NA"))
+
+
+data$protesterdemand1 <- factor(data$protesterdemand1, levels=c("labor wage dispute", "land farm issue", "police brutality", "political behavior, process", "price increases, tax policy", "removal of politician", "social restrictions","NA")) 
+data$protesterdemand2 <- factor(data$protesterdemand2, levels=c("labor wage dispute", "land farm issue", "police brutality", "political behavior, process", "price increases, tax policy", "removal of politician", "social restrictions","NA")) 
+data$protesterdemand3 <- factor(data$protesterdemand3, levels=c("labor wage dispute", "land farm issue", "police brutality", "political behavior, process", "price increases, tax policy", "removal of politician", "social restrictions","NA"))
+data$protesterdemand4 <- factor(data$protesterdemand4, levels=c("labor wage dispute", "land farm issue", "police brutality", "political behavior, process", "price increases, tax policy", "removal of politician","NA"))
+
+data$stateresponse1 <- factor(data$stateresponse1, levels=c("accomodation", "arrests", "beatings", "crowd dispersal", "ignore", "killings", "shootings", "NA"))
+data$stateresponse2 <- factor(data$stateresponse2, levels=c("accomodation", "arrests", "beatings", "crowd dispersal", "ignore", "killings", "shootings", "NA"))
+data$stateresponse3 <- factor(data$stateresponse3, levels=c("accomodation", "arrests", "beatings", "crowd dispersal", "ignore", "killings", "shootings", "NA"))
+
+
+
+data$region <- factor(data$region, levels=c("Africa","Asia","Central America", "Europe", "MENA", "North America", "Oceania", "South America"))
+
+
+
+```
+
+```{r}
+#barplots
+#data$year <- factor(data$year, levels=c("1990","1991","1992","1993","1994","1995","1996","1997","1998","1999","2000","2001","2002","2003","2004, 2005","2006","2007","2008","2009","2010","2011","2012","2013","2014","2015","2016","2017","2018","2019"))
+
+plot1 <- ggplot(data,
+       aes(x = factor(year))) +
+  geom_bar(fill = "#FF6666")
+plot1
+
+plot2 <- ggplot(data,
+       aes(x = factor(protesterdemand1))) +
+  geom_bar(fill = "#00FF00")
+plot2
+
+plot3 <- ggplot(data,
+       aes(x = factor(stateresponse1))) +
+  geom_bar(fill = "#0000FF")
+plot3
+
+plot4 <- ggplot(data,
+       aes(x = factor(region))) +
+  geom_bar(fill = "#FF6666")
+plot4
+
+plot5 <- ggplot(data,
+       aes(x = factor(participants_category))) +
+  geom_bar(fill="#00FF00")
+plot5
+
+```
+
+```{r}
+#linear model - figure out which variables statistically significant
+
+
+lm1 <- lm(stateresponsedummy ~ year + region + startday + startmonth + length + protesterviolence + participants_category + protesterdemand1 + stateresponse1, data=data)
+summary(lm1)
+
+
+#statistically significant variables: 
+#years - 1991, 1993, 1994, 2003, 2008, 2011, 2015, 2019
+#regions - Asia, Central America, MENA, Oceania
+#start month 
+#length 
+#protester violence
+#participants category - 2000-4999, >10000
+#protestor demand - policebrutality , political behavior/process, price increases/tax policy, social restrictions
+#state response - arrests, beatings, crowd dispersal, ignore, killings, shootings 
+
+```
+```{r}
+#generalized linear model 
+lm2 <- glm(stateresponsedummy ~ year + region + startday + startmonth + length + protesterviolence + participants_category + protesterdemand1 + stateresponse1, data=data)
+summary(lm2)
+
+```
+
+```{r}
+set.seed(10) 
+#Cross-Validation
+# Train the model
+train.control <- trainControl(method = "cv", number = 10) #cv 
+model1 <- train(stateresponsedummy ~ year + region + startday + startmonth + length + protesterviolence + participants_category + protesterdemand1 + stateresponse1, data=data, method = "lm",
+               trControl = train.control)
+```
+```{r}
+moddata <- data.frame(data$stateresponsedummy, data$year, (data$region), data$startday, data$startmonth, data$length, data$protesterviolence, data$participants_category, data$protesterdemand1)
+
+summary(moddata$data.stateresponsedummy)
+#is.na(moddata$data.stateresponsedummy)
+```
+
+
+```{r}
+
+#random forest model 
+library(randomForest)
+library(mlbench)
+library(caret) 
+
+# partition 
+#Create Evaluation Sets
+set.seed(123)
+n = nrow(data)
+trainIndex = sample(1:n, size = round(0.7*n), replace=FALSE)
+```
+
+```{r}
+#Creates training and test set from observations 
+set.seed(123)
+n = nrow(moddata)
+trainIndex = sample(1:n, size = (0.7*n), replace=FALSE)
+training = moddata[trainIndex,]
+testing = moddata[-trainIndex,]
+
+#andomforestmodel <- randomForest(stateresponsedummy ~., training, mtry = 3, importance = TRUE, na.action = na.omit)
+
+randomforestmodel <- randomForest (data.stateresponsedummy~., training, mtry = 3, importance = TRUE, na.action = na.omit) 
+print(randomforestmodel)
+summary(randomforestmodel)
+
+
+
+#Plot the error vs the number of trees graph 
+plot(randomforestmodel) 
+```
+
+```{r}
+#model3 / random forest evaluation 
+library("ie2misc")
+varImp(randomforestmodel)
+varImpPlot(randomforestmodel,type=2,n.var=min(10,nrow(randomforestmodel$importance)))
+
+# obtain MSE as of last element in fit$mse
+# which should match the output from printout
+randomforestmodel$mse[length(randomforestmodel$mse)]
+
+# take square root to calculate RMSE for the model
+
+predValues <- predict(randomforestmodel,testing)
+
+sqrt(randomforestmodel$mse[length(randomforestmodel$mse)]) # rmse = 0.27; given data ranges from 0 to 1 relatively small value 
+#rmse is the standard deviation of residuals; measures the differences between values predicted by a model or an estimator and the values observed
+
+print(randomforestmodel)
+summary(randomforestmodel)
+
+#r-squared of 0.1195
+#variables included: stateresponse, year, length, startday, startmonth, participants category, protesterdemand, region, protestorviolence
+#the higher node purity indicates that more of the data belongs to a single class; variables that split most definitively by year, startday, startmonth, participants, protestordemand, length, region, protestor violence (highest to lowest) 
+
+
+
+```
+
+```{r}
+#textual
+install.packages("wordcloud")
+library(wordcloud)
+install.packages("RColorBrewer")
+library(RColorBrewer)
+install.packages("wordcloud2")
+library(wordcloud2)
+install.packages("tm")
+library(tm)
+
+```
+
+```{r}
+#etwd('C:/Users/malik/Downloads')
+#extdata <- read.csv('textualnotes.csv')
+```
+
+```{r}
+#https://www.pluralsight.com/guides/visualization-text-data-using-word-cloud-r
+library(readr)
+library(dplyr)
+library(e1071)
+library(mlbench)
+ 
+#Text mining packages
+library(tm)
+#nstall.packages("SnowballC")
+library(SnowballC)
+library("wordcloud")
+library("RColorBrewer")
+ 
+#loading the data
+setwd('C:/Users/malik/Downloads')
+t1 <- read_csv('textualnotes.csv')
+glimpse(t1)  
+
+```
+```{r}
+# Create corpus
+corpus = Corpus(VectorSource(t1$notes))
+# Look at corpus
+corpus[[1]][1]
+```
+
+```{r}
+#Conversion to Lowercase
+corpus = tm_map(corpus, PlainTextDocument)
+corpus = tm_map(corpus, tolower)
+ 
+#Removing Punctuation
+corpus = tm_map(corpus, removePunctuation)
+ 
+#Remove stopwords
+corpus = tm_map(corpus, removeWords, c("cloth", stopwords("english")))
+ 
+# Stemming
+corpus = tm_map(corpus, stemDocument)
+ 
+# Eliminate white spaces
+corpus = tm_map(corpus, stripWhitespace)
+corpus[[1]][1] 
+
+```
+```{r}
+DTM <- TermDocumentMatrix(corpus)
+mat <- as.matrix(DTM)
+f <- sort(rowSums(mat),decreasing=TRUE)
+dat <- data.frame(word = names(f),freq=f)
+head(dat, 10)
+```
+```{r}
+set.seed(123)
+wordcloud(words = dat$word, freq = dat$freq, min.freq = 3, max.words=250, random.order=FALSE, rot.per=0.30, colors=brewer.pal(8, "Dark2"))
+
+```
+
