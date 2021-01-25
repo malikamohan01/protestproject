@@ -342,3 +342,216 @@ wordcloud(words = dat$word, freq = dat$freq, min.freq = 3, max.words=250, random
 
 ```
 
+#additional analysis and updated modeling 1/22 - 1/24 :
+
+#updated random forest model with new variables included (freedom of expression, new target variable of state response continous) & testing
+---
+title: "Protest Proj Modeling"
+output: html_document
+---
+
+
+```{r}
+setwd('C:/Users/malik/Downloads')
+data <- read.csv('cleanprotestdata5.csv')
+```
+
+```{r}
+#load packages 
+library(dataQualityR)
+library(corrplot)
+library(ggplot2)
+library(ggpubr)
+library(scales)
+library(dplyr)
+library(tidyverse)
+library(MASS)
+```
+
+```{r}
+data <- subset(data,select = -c(protest))
+
+
+data <- data %>% 
+  rename(
+  stateresponsescaled = stateresponsecontinous
+    )
+
+data <- data %>% 
+  rename(
+    participantscategory = p
+    )
+```
+```{r}
+data$participantscategory <- factor(data$participantscategory, levels=c("50-99","100-999", "1000-1999","2000-4999","5000-10000", ">10000"))
+
+
+data$protesterdemand1 <- factor(data$protesterdemand1, levels=c("labor wage dispute", "land farm issue", "police brutality", "political behavior, process", "price increases, tax policy", "removal of politician", "social restrictions")) 
+
+data$region <- factor(data$region, levels=c("Africa","Asia","Central America", "Europe", "MENA", "North America", "Oceania", "South America"))
+```
+
+```{r}
+moddata1 <- subset(data, select = -c(country, startday, startmonth, startyear, startdate, endday, endmonth, endyear, enddate, location, protesteridentity, protesterdemand2, protesterdemand3, protesterdemand4, stateresponse1, stateresponse2, stateresponse3, stateresponse4, stateresponse5, stateresponse6, stateresponse7, stateresponsedummy  ) )
+moddata <- na.omit(moddata1)
+moddata
+```
+
+
+```{r}
+library(glmnet)
+x <- model.matrix(stateresponsescaled~.,moddata)
+y <- moddata$stateresponsescaled
+mod <- cv.glmnet(as.matrix(x), y, alpha=1) #lasso
+mod2 <- cv.glmnet(as.matrix(x),y,alpha=0) #ridge
+```
+
+```{r}
+#to see coefficients with minimum CV error 
+as.matrix(coef(mod, mod$lambda.min))
+#To see the coefficients with the "largest value of lambda such that error is within 1 standard error of the minimum":
+as.matrix(coef(mod, mod$lambda.1se))
+
+
+#based off lasso model coefficients, most relevant: free expression index, region (asia+, europe+ and south america neg, length, protesterviolence, participants ctaegories, protest demands of police brutality, political behavior process and removal of politician)
+```
+```{r}
+#You can also select any other value of lambda that you want. Coefficients that are 0 have been dropped out of the model
+CF <- as.matrix(coef(mod, mod$lambda.1se))
+CF[CF!=0,]
+```
+```{r}
+#random forest
+library(randomForest)
+library(mlbench)
+library(caret) 
+
+# partition 
+#Create Evaluation Sets
+set.seed(123)
+n = nrow(moddata)
+trainIndex = sample(1:n, size = round(0.7*n), replace=FALSE)
+```
+
+```{r}
+#Creates training and test set from observations 
+training = moddata[trainIndex,]
+testing = moddata[-trainIndex,]
+
+randomforestmodel <- randomForest(stateresponsescaled ~ ., training, mtry = 3, 
+                         importance = TRUE, ntree=500, na.action = na.omit)
+print(randomforestmodel) 
+summary(randomforestmodel)
+
+#Plot the error vs the number of trees graph 
+plot(randomforestmodel) 
+```
+```{r}
+#random forest important variables 
+varImp(randomforestmodel)
+varImpPlot(randomforestmodel,type=2,n.var=min(10, nrow(randomforestmodel$importance)))
+
+```
+```{r}
+#random forest model eval 
+randomforestmodel
+summary(randomforestmodel)
+# obtain MSE as of last element in fit$mse
+# which should match the output from printout
+randomforestmodel$mse[length(randomforestmodel$mse)]
+# take square root to calculate RMSE for the model
+sqrt(randomforestmodel$mse[length(randomforestmodel$mse)])
+
+```
+
+```{r}
+#testing <- (insert test of recent protest here)
+#predValues <- predict(randomforestmodel,testing)
+```
+
+```{r}
+newdata <- data.frame(free.expression.index=3.34, year=2021, region="Europe",length=2,protesterviolence=1,participantscategory=">10000",protesterdemand1="political behavior, process",stateresponsescaled = "2")
+newdata$region <- as.factor(newdata$region)
+newdata$participantscategory <- as.factor(newdata$participantscategory)
+newdata$protesterdemand1 <- as.factor(newdata$protesterdemand1)
+newdata$year <- as.integer(newdata$year)
+newdata$length <- as.integer(newdata$length)
+newdata$protesterviolence <- as.integer(newdata$protesterviolence)
+newdata$stateresponsescaled <- as.integer(newdata$stateresponsescaled)
+
+training
+newdata
+
+```
+```{r}
+levels(newdata$region) <- levels(training$region)
+levels(newdata$participantscategory) <- levels(training$participantscategory)
+levels(newdata$protesterdemand1) <- levels(training$protesterdemand1)
+
+```
+
+```{r}
+predict(randomforestmodel,newdata) 
+```
+
+
+#new glm with updated variables
+lm1 <- lm(stateresponsescaled ~ year + region + startday + startmonth + length + protesterviolence + participantscategory + protesterdemand1 + free.expression.index, data = data )
+summary(lm1)
+
+
+#statistically significant variables: 
+#regions - South America 
+#protester violence
+#participants category -  >10000
+#protestor demand - policebrutality , political behavior/process, price increases/tax policy (less), social restrictions (less), removal of politician
+#free expression index
+
+#lm iteration 2
+lm2 <- lm(stateresponsescaled ~ region + length + protesterviolence + participantscategory + protesterdemand1 + free.expression.index, data = data )
+summary(lm2)
+
+#confirming variable selection via lasso regression: 
+data <- data %>% 
+  na.omit(region
+    )
+data <- data %>% 
+  na.omit(participantscategory
+    )
+data <- data %>% 
+  na.omit(protesterdemand1
+    )
+    
+    moddata <- subset(data, select = c(stateresponsescaled,protesterviolence,length,year,free.expression.index, region, participantscategory, protesterdemand1))
+g
+library(glmnet)
+x <- model.matrix(stateresponsescaled~.,moddata, na.action = omit)[,-2]
+y <- moddata$stateresponsescaled
+
+mod <- cv.glmnet(as.matrix(x), y, alpha=1) #lasso
+mod2 <- cv.glmnet(as.matrix(x),y,alpha=0) #ridge
+#to see coefficients with minimum CV error 
+as.matrix(coef(mod, mod$lambda.min))
+#To see the coefficients with the "largest value of lambda such that error is within 1 standard error of the minimum":
+as.matrix(coef(mod, mod$lambda.1se))
+#You can also select any other value of lambda that you want. Coefficients that are 0 have been dropped out of the model
+CF <- as.matrix(coef(mod, mod$lambda.1se))
+CF[CF!=0,]
+
+#generalized linear model 
+glm1 <- glm(stateresponsescaled ~ region + length + protesterviolence + participantscategory + protesterdemand1 + free.expression.index, data = data)
+summary(glm1)
+
+#r squared = .17 
+1 - (2026.8/2440.6)
+
+#predict using current protests in Russia
+newdata <- data.frame(free.expression.index=3.3, year=2021, region="Europe",length=1,protesterviolence=1,participantscategory=">10000",protesterdemand1="removal of politician")
+newdata$region <- as.factor(newdata$region)
+newdata$participantscategory <- as.factor(newdata$participantscategory)
+newdata$protesterdemand1 <- as.factor(newdata$protesterdemand1)
+newdata$year <- as.integer(newdata$year)
+newdata$length <- as.integer(newdata$length)
+newdata$protesterviolence <- as.integer(newdata$protesterviolence)
+predict(glm1, newdata)
+
